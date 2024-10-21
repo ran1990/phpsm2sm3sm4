@@ -2,11 +2,12 @@
 * 本项目支持php版本的国密sm2的签名算法，非对称加解密算法，sm3的hash，  sm4的对称加解密，要求PHP７，打开gmp支持
 * 目前如果服务器配套的使用的是openssl 1.1.1x， 目前到1.1.1.l(w) ，sm3，sm4都可以直接用openssl_xxx系列函数直接实现，不必大量的代码，不支持sm2的签名，sm2的加解密
 * 该版本是基于PHP-ECC,也支持其他的椭圆算法的，依赖比较多，如果只想要简单的 sm2相关的签名，加密，可以使用本版本的简化版 https://github.com/lpilp/simplesm2
- 
+
+
 ## 安装
 
 ```
-composer require lpilp/guomi
+composer require life2016/guomi
 ```
 > 请确保你升级到 `composer 2` 及以上版本。`PHP >=7.2`,打开gmp组件支持。
 
@@ -81,4 +82,48 @@ function __construct($formatSign='hex', $randFixed = true) {
 }
 ```
 
+ * 银联这边java加密非sm2标准， java取x,y的值用错了函数，取成生成asn1的bigint的算法，得计算是否大于7f，php更改代码/src/smecc/sm2/chipher.php 
+
+```
+private function  Reset() //注意，加密使用无符号的数组转换，以便与硬件相一致
+{
+    $this->sm3keybase = new SM3Digest();
+    $this->sm3c3 = new SM3Digest();
+
+    $p = array();
+
+    $gmp_x = $this->p2->GetX();
+    $this->sm3keybase->BlockUpdate(array(4), 0, 1); // 添加： 这里添加个04
+    $x = Hex2ByteBuf::ConvertGmp2ByteArray($gmp_x);
+    $this->sm3keybase->BlockUpdate($x, 0, sizeof($x));
+    if($x[0]>127){ // >7F
+        $this->sm3c3->BlockUpdate(array(0), 0, 1);   // 这里做了个判定，补00
+    }
+    $this->sm3c3->BlockUpdate($x, 0, sizeof($x));
+
+    $gmp_y = $this->p2->GetY();
+    $y = Hex2ByteBuf::ConvertGmp2ByteArray($gmp_y);
+    $this->sm3keybase->BlockUpdate($y, 0, sizeof($y));
+
+    $this->ct = 1;
+    $this->NextKey();
+}
+    
+public function  Dofinal()
+{
+    $c3 = array();
+    $gmp_p = $this->p2->GetY();
+
+    $p = Hex2ByteBuf::ConvertGmp2ByteArray($gmp_p);
+   ///========以下添加的======
+    if($p[0]>127){ // >7F
+        $this->sm3c3->BlockUpdate(array(0), 0, 1);   // 这里做了个判定，补00
+    }
+  ///========以上添加的======
+    $this->sm3c3->BlockUpdate($p, 0, sizeof($p));
+    $this->sm3c3->DoFinal($c3, 0);
+    $this->Reset(); 
+    return $c3;
+}
+```
 
