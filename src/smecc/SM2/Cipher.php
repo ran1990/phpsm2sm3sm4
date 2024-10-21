@@ -31,8 +31,12 @@ class Cipher
         $p = array();
 
         $gmp_x = $this->p2->GetX();
+        $this->sm3keybase->BlockUpdate(array(4), 0, 1); // 添加： 这里添加个04
         $x = Hex2ByteBuf::ConvertGmp2ByteArray($gmp_x);
         $this->sm3keybase->BlockUpdate($x, 0, sizeof($x));
+        if($x[0]>127){ // >7F
+            $this->sm3c3->BlockUpdate(array(0), 0, 1);   // 这里做了个判定，补00
+        }
         $this->sm3c3->BlockUpdate($x, 0, sizeof($x));
 
         $gmp_y = $this->p2->GetY();
@@ -107,10 +111,16 @@ class Cipher
     {
         $c3 = array();
         $gmp_p = $this->p2->GetY();
+
         $p = Hex2ByteBuf::ConvertGmp2ByteArray($gmp_p);
+        ///========以下添加的======
+        if($p[0]>127){ // >7F
+            $this->sm3c3->BlockUpdate(array(0), 0, 1);   // 这里做了个判定，补00
+        }
+        ///========以上添加的======
         $this->sm3c3->BlockUpdate($p, 0, sizeof($p));
         $this->sm3c3->DoFinal($c3, 0);
-        $this->Reset(); 
+        $this->Reset();
         return $c3;
     }
 }
